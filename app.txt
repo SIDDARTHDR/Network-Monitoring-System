@@ -1,0 +1,27 @@
+from flask import Flask, render_template
+from monitor import monitor_network
+from alerts import check_alerts
+from database import init_db, insert_log
+from automation import restart_interface
+
+app = Flask(__name__)
+
+init_db()
+
+@app.route("/")
+def dashboard():
+    devices = monitor_network()
+
+    for d in devices:
+        insert_log(d)
+        alerts = check_alerts(d)
+
+        if "Device DOWN" in alerts:
+            restart_interface(d["ip"])
+
+        d["alerts"] = alerts
+
+    return render_template("dashboard.html", devices=devices)
+
+if __name__ == "__main__":
+    app.run(debug=True)

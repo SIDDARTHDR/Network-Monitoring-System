@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Network Monitoring Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI";
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: white;
+        }
+
+        h1 {
+            text-align: center;
+            padding: 20px;
+            font-weight: 600;
+        }
+
+        .logout {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 12px;
+            border-radius: 20px;
+            text-decoration: none;
+            color: white;
+            backdrop-filter: blur(10px);
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        /* GLASS CARD */
+        .cards {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            flex: 1;
+            padding: 20px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(12px);
+            text-align: center;
+            transition: 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+        .card p {
+            color: #94a3b8;
+        }
+
+        /* TABLE */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: 20px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+        }
+
+        th {
+            background: rgba(255,255,255,0.1);
+            padding: 12px;
+        }
+
+        td {
+            padding: 10px;
+            text-align: center;
+        }
+
+        tr:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        /* STATUS BADGES */
+        .badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        .up { background: rgba(34,197,94,0.2); }
+        .down { background: rgba(239,68,68,0.2); }
+        .partial { background: rgba(250,204,21,0.2); color: #facc15; }
+
+        .ok { background: rgba(34,197,94,0.3); }
+        .issue { background: rgba(239,68,68,0.3); }
+
+        canvas {
+            margin-top: 30px;
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+<a href="/logout" class="logout">Logout</a>
+
+<h1>🚀 Network Monitoring</h1>
+
+<div class="container">
+
+    <div class="cards">
+        <div class="card">
+            <h2 id="total">0</h2>
+            <p>Total Devices</p>
+        </div>
+        <div class="card">
+            <h2 id="up">0</h2>
+            <p>Active</p>
+        </div>
+        <div class="card">
+            <h2 id="partial">0</h2>
+            <p>Partial</p>
+        </div>
+        <div class="card">
+            <h2 id="down">0</h2>
+            <p>Down</p>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Device</th>
+                <th>IP</th>
+                <th>Status</th>
+                <th>Latency</th>
+                <th>Loss</th>
+                <th>CPU</th>
+                <th>Health</th>
+            </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+    </table>
+
+    <canvas id="chart"></canvas>
+
+</div>
+
+<audio id="alertSound" src="/static/alert.mp3"></audio>
+
+<script>
+let chart;
+let previousState = {};
+
+document.addEventListener("click", () => {
+    let sound = document.getElementById("alertSound");
+    sound.play().then(() => {
+        sound.pause();
+        sound.currentTime = 0;
+    }).catch(() => {});
+}, { once: true });
+
+const socket = io();
+
+socket.on('update', function(data) {
+
+    let html = "";
+
+    let total = data.length;
+    let up = data.filter(d => d.status === "UP").length;
+    let partial = data.filter(d => d.status === "PARTIAL").length;
+    let down = data.filter(d => d.status === "DOWN").length;
+    document.getElementById("total").innerText = total;
+    document.getElementById("up").innerText = up;
+    document.getElementById("partial").innerText = partial;
+    document.getElementById("down").innerText = down;
+
+    let labels = [];
+    let latencyData = [];
+
+    data.forEach(d => {
+
+        let statusBadge = "";
+
+        if (d.status === "UP") {
+            statusBadge = `<span class="badge up">● UP</span>`;
+        }
+        else if (d.status === "PARTIAL") {
+            statusBadge = `<span class="badge partial">● PARTIAL</span>`;
+        }
+        else {
+            statusBadge = `<span class="badge down">● DOWN</span>`;
+        }
+
+        let issue = (d.packet_loss > 5 || d.latency > 200);
+
+        let healthBadge = issue
+            ? `<span class="badge issue">Issue</span>`
+            : `<span class="badge ok">Normal</span>`;
+
+
+
+        let key = d.ip;
+        let currentState = issue ? "ISSUE" : "NORMAL";
+
+        if (previousState[key] !== currentState) {
+            document.getElementById("alertSound").play().catch(()=>{});
+        }
+
+        previousState[key] = currentState;
+
+        html += `
+        <tr>
+            <td>${d.name}</td>
+            <td>${d.ip}</td>
+            <td>${statusBadge}</td>
+            <td>${d.latency} ms</td>
+            <td>${d.packet_loss}%</td>
+            <td>
+            ${d.cpu !== "N/A" && d.cpu !== undefined 
+                ? d.cpu + "%" 
+                : "N/A"}
+            </td>
+            <td>${healthBadge}</td>
+        </tr>`;
+
+        labels.push(d.name);
+        latencyData.push(d.latency);
+    });
+
+    document.getElementById("table-body").innerHTML = html;
+
+    if (chart) chart.destroy();
+
+    chart = new Chart(document.getElementById('chart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Latency',
+                data: latencyData,
+                tension: 0.4
+            }]
+        }
+    });
+});
+</script>
+
+</body>
+</html>
