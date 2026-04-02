@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Devices</title>
+
+<style>
+body {
+    margin:0;
+    font-family:Segoe UI;
+    background:#0f172a;
+    color:white;
+}
+
+.main { margin-left:260px; padding:20px; }
+
+.card {
+    background:#020617;
+    padding:20px;
+    border-radius:16px;
+    margin-bottom:20px;
+    transition:0.3s;
+}
+.card:hover { transform:translateY(-5px); }
+
+.badge {
+    padding:5px 12px;
+    border-radius:20px;
+}
+.up { background:#16a34a; }
+.partial { background:#eab308; }
+.down { background:#dc2626; }
+
+table { width:100%; border-collapse:collapse; }
+td, th { padding:12px; text-align:center; }
+
+tr:hover { background:rgba(255,255,255,0.05); cursor:pointer; }
+
+.sidebar {
+    position:fixed;
+    width:240px;
+    height:100%;
+    background:#020617;
+    padding:20px;
+}
+.sidebar a {
+    display:block;
+    padding:10px;
+    color:#94a3b8;
+    text-decoration:none;
+}
+.sidebar a.active { background:#1e293b; color:white; }
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+<h2>⚡ Monitor</h2>
+<a href="/">Dashboard</a>
+<a href="/devices" class="active">Devices</a>
+<a href="/alerts">Alerts</a>
+<a href="/logs">Logs</a>
+</div>
+
+<div class="main">
+
+<h2>🖥 Devices Overview</h2>
+
+<div style="display:flex; gap:20px;">
+<div class="card">Total: {{ devices|length }}</div>
+<div class="card">UP: {{ devices|selectattr("status","equalto","UP")|list|length }}</div>
+<div class="card">DOWN: {{ devices|selectattr("status","equalto","DOWN")|list|length }}</div>
+</div>
+
+<div class="card">
+<table>
+<tr>
+<th>Name</th><th>IP</th><th>Status</th><th>Latency</th><th>Loss</th>
+</tr>
+
+{% for d in devices %}
+<tr onclick="location.href='/device/{{ d.ip }}'">
+<td>{{ d.name }}</td>
+<td>{{ d.ip }}</td>
+<td><span class="badge {{ d.status|lower }}">{{ d.status }}</span></td>
+<td>{{ d.latency }}</td>
+<td>{{ d.packet_loss }}</td>
+</tr>
+{% endfor %}
+
+</table>
+</div>
+
+</div>
+</body>
+</html>

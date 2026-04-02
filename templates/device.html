@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Device Detail</title>
+
+<style>
+body {
+    margin:0;
+    font-family:Segoe UI;
+    background:#0f172a;
+    color:white;
+}
+
+.main { margin-left:260px; padding:20px; }
+
+.card {
+    background:#020617;
+    padding:20px;
+    border-radius:16px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="main">
+
+<div class="card">
+<h2>📊 Device Insight</h2>
+
+<h3>{{ d.name }}</h3>
+<p>IP: {{ d.ip }}</p>
+<p>Status: {{ d.status }}</p>
+<p>Latency: {{ d.latency }}</p>
+<p>Packet Loss: {{ d.packet_loss }}</p>
+<p>CPU: {{ d.cpu }}</p>
+
+</div>
+
+</div>
+</body>
+</html>

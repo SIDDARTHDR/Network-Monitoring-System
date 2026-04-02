@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Logs</title>
+
+<style>
+body {
+    margin:0;
+    font-family:Segoe UI;
+    background:#0f172a;
+    color:white;
+}
+
+.sidebar {
+    position:fixed;
+    width:240px;
+    height:100%;
+    background:#020617;
+    padding:20px;
+}
+
+.sidebar a {
+    display:block;
+    padding:10px;
+    color:#94a3b8;
+    text-decoration:none;
+}
+
+.sidebar a.active { background:#1e293b; color:white; }
+
+.main { margin-left:260px; padding:20px; }
+
+.card {
+    background:#020617;
+    padding:20px;
+    border-radius:16px;
+}
+
+table { width:100%; border-collapse:collapse; }
+td, th { padding:10px; text-align:center; }
+
+input {
+    padding:10px;
+    width:300px;
+    margin-bottom:15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+<h2>⚡ Monitor</h2>
+<a href="/">Dashboard</a>
+<a href="/devices">Devices</a>
+<a href="/alerts">Alerts</a>
+<a href="/logs" class="active">Logs</a>
+</div>
+
+<div class="main">
+
+<h2>📜 Logs</h2>
+
+<input id="search" placeholder="Search device...">
+
+<div class="card">
+<table id="logTable">
+<tr>
+<th>ID</th><th>Device</th><th>Status</th><th>Latency</th><th>Loss</th>
+</tr>
+
+{% for l in logs %}
+<tr>
+<td>{{ l[0] }}</td>
+<td>{{ l[1] }}</td>
+<td>{{ l[3] }}</td>
+<td>{{ l[4] }}</td>
+<td>{{ l[5] }}</td>
+</tr>
+{% endfor %}
+
+</table>
+</div>
+
+</div>
+
+<script>
+document.getElementById("search").addEventListener("keyup", function(){
+    let val = this.value.toLowerCase();
+    document.querySelectorAll("#logTable tr").forEach(row=>{
+        row.style.display = row.innerText.toLowerCase().includes(val) ? "" : "none";
+    });
+});
+</script>
+
+</body>
+</html>

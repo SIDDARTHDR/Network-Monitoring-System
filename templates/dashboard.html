@@ -1,0 +1,295 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enterprise Network Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+
+    <style>
+    html { scroll-behavior: smooth; }
+
+    body {
+        margin: 0;
+        font-family: 'Segoe UI', sans-serif;
+        background: #0f172a;
+        color: white;
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+        position: fixed;
+        width: 240px;
+        height: 100%;
+        background: #020617;
+        padding: 20px;
+        border-right: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .sidebar h2 { margin-bottom: 30px; }
+
+    .sidebar a {
+        display: block;
+        padding: 12px;
+        color: #94a3b8;
+        text-decoration: none;
+        border-radius: 8px;
+    }
+
+    .sidebar a:hover, .sidebar a.active {
+        background: rgba(56,189,248,0.2);
+        color: white;
+    }
+
+    /* MAIN */
+    .main {
+        margin-left: 270px;
+        padding: 25px;
+    }
+
+    /* CARDS */
+    .cards {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+    }
+
+    .card {
+        background: #020617;
+        padding: 20px;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .card h2 { margin: 0; font-size: 28px; }
+
+    /* TABLE */
+    table {
+        width: 100%;
+        margin-top: 20px;
+        border-collapse: collapse;
+    }
+
+    th, td {
+        padding: 12px;
+        text-align: center;
+    }
+
+    tr {
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        cursor: pointer;
+    }
+
+    tr:hover {
+        background: rgba(255,255,255,0.05);
+    }
+
+    /* STATUS */
+    .badge {
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+    }
+
+    .up { background: #16a34a; }
+    .down { background: #dc2626; }
+    .partial { background: #eab308; }
+
+    /* SEVERITY */
+    .severity-critical { color: #ef4444; }
+    .severity-warning { color: #facc15; }
+    .severity-normal { color: #22c55e; }
+
+    /* ALERT PANEL */
+    .alert-panel {
+        margin-top: 20px;
+        background: #020617;
+        padding: 15px;
+        border-radius: 16px;
+    }
+
+    .alert {
+        padding: 10px;
+        border-left: 4px solid red;
+        margin-bottom: 10px;
+    }
+
+    /* MODAL */
+    .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.7);
+        justify-content: center;
+        align-items: center;
+    }
+
+    .modal-content {
+        background: #020617;
+        padding: 20px;
+        border-radius: 12px;
+        width: 300px;
+    }
+
+    /* TOAST */
+    #toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #ef4444;
+        padding: 10px;
+        display: none;
+    }
+    </style>
+</head>
+
+<body>
+
+<div class="sidebar">
+    <h2>⚡ Monitor</h2>
+    <a href="/" class="{% if request.path=='/' %}active{% endif %}">Dashboard</a>
+    <a href="/devices" class="{% if request.path=='/devices' %}active{% endif %}">Devices</a>
+    <a href="/alerts" class="{% if request.path=='/alerts' %}active{% endif %}">Alerts</a>
+    <a href="/logs" class="{% if request.path=='/logs' %}active{% endif %}">Logs</a>
+</div>
+
+<div class="main">
+
+<h1 id="dashboard">🚀 Enterprise Network Monitoring</h1>
+
+<div class="cards">
+    <div class="card"><h2 id="total">0</h2><p>Total</p></div>
+    <div class="card"><h2 id="up">0</h2><p>Active</p></div>
+    <div class="card"><h2 id="partial">0</h2><p>Partial</p></div>
+    <div class="card"><h2 id="down">0</h2><p>Down</p></div>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Device</th><th>IP</th><th>Status</th><th>Latency</th><th>Loss</th><th>CPU</th><th>Severity</th>
+</tr>
+</thead>
+<tbody id="table-body"></tbody>
+</table>
+
+<div class="alert-panel" id="alerts">
+    <h3>⚠ Live Alerts</h3>
+    <div id="alert-list"></div>
+</div>
+
+<canvas id="chart"></canvas>
+
+</div>
+
+<!-- MODAL -->
+<div class="modal" id="modal">
+    <div class="modal-content" id="modal-content"></div>
+</div>
+
+<div id="toast">⚠ Alert</div>
+
+<script>
+const socket = io();
+let chart;
+let alerts = [];
+let alertState = {};   // 🔥 Track previous state
+
+socket.on('update', function(data){
+
+    let html = "";
+    let alertHTML = "";
+
+    document.getElementById("total").innerText = data.length;
+    document.getElementById("up").innerText = data.filter(d=>d.status==="UP").length;
+    document.getElementById("partial").innerText = data.filter(d=>d.status==="PARTIAL").length;
+    document.getElementById("down").innerText = data.filter(d=>d.status==="DOWN").length;
+
+    let labels=[], latency=[];
+
+    data.forEach(d=>{
+
+        let severity = "NORMAL";
+        if(d.packet_loss > 50) severity = "CRITICAL";
+        else if(d.packet_loss > 10) severity = "WARNING";
+
+        let key = d.ip;
+
+        // ✅ Trigger alert ONLY on state change
+        if (severity !== "NORMAL" && alertState[key] !== severity) {
+
+            let alertMsg = `${d.name} - ${severity} issue detected`;
+
+            alerts.unshift(alertMsg);
+
+            showToast(alertMsg);
+        }
+
+        alertState[key] = severity;
+
+        html += `
+        <tr onclick="openModal('${d.name}','${d.ip}','${d.latency}','${d.packet_loss}')">
+            <td>${d.name}</td>
+            <td>${d.ip}</td>
+            <td><span class="badge ${d.status.toLowerCase()}">${d.status}</span></td>
+            <td>${d.latency} ms</td>
+            <td>${d.packet_loss}%</td>
+            <td>${d.cpu || "N/A"}</td>
+            <td class="severity-${severity.toLowerCase()}">${severity}</td>
+        </tr>`;
+
+        labels.push(d.name);
+        latency.push(d.latency);
+    });
+
+    // ✅ Keep only latest 5 alerts
+    alerts = alerts.slice(0, 5);
+
+    // ✅ NOW render alerts AFTER updating
+    alerts.forEach(a => {
+        alertHTML += `<div class="alert">${a}</div>`;
+    });
+
+    document.getElementById("table-body").innerHTML = html;
+    document.getElementById("alert-list").innerHTML = alertHTML;
+
+    if(chart) chart.destroy();
+
+    chart = new Chart(document.getElementById("chart"), {
+        type:'line',
+        data:{
+            labels:labels,
+            datasets:[{
+                label:"Latency",
+                data:latency,
+                tension:0.4
+            }]
+        }
+    });
+});
+
+function openModal(name,ip,latency,loss){
+    document.getElementById("modal").style.display="flex";
+    document.getElementById("modal-content").innerHTML = `
+        <h3>${name}</h3>
+        <p>IP: ${ip}</p>
+        <p>Latency: ${latency} ms</p>
+        <p>Loss: ${loss}%</p>
+    `;
+}
+
+document.getElementById("modal").onclick = ()=>{
+    document.getElementById("modal").style.display="none";
+};
+
+function showToast(msg){
+    let t=document.getElementById("toast");
+    t.innerText=msg;
+    t.style.display="block";
+    setTimeout(()=>t.style.display="none",3000);
+}
+</script>
+
+</body>
+</html>

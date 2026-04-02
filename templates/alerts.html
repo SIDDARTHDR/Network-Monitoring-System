@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Alerts</title>
+
+<style>
+body {
+    margin:0;
+    font-family:Segoe UI;
+    background:#0f172a;
+    color:white;
+}
+
+.sidebar {
+    position:fixed;
+    width:240px;
+    height:100%;
+    background:#020617;
+    padding:20px;
+}
+
+.sidebar a {
+    display:block;
+    padding:10px;
+    color:#94a3b8;
+    text-decoration:none;
+}
+
+.sidebar a.active { background:#1e293b; color:white; }
+
+.main { margin-left:260px; padding:20px; }
+
+.alert-card {
+    background:#020617;
+    padding:15px;
+    margin-bottom:10px;
+    border-left:4px solid red;
+    border-radius:10px;
+    animation:fade 0.5s;
+}
+
+@keyframes fade {
+    from{opacity:0; transform:translateY(10px);}
+    to{opacity:1;}
+}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+<h2>⚡ Monitor</h2>
+<a href="/">Dashboard</a>
+<a href="/devices">Devices</a>
+<a href="/alerts" class="active">Alerts</a>
+<a href="/logs">Logs</a>
+</div>
+
+<div class="main">
+
+<h2>🚨 Alert Intelligence</h2>
+
+{% for a in alerts %}
+<div class="alert-card">
+<b>{{ a.device }}</b><br>
+{{ a.msg }}
+</div>
+{% endfor %}
+
+</div>
+</body>
+</html>
